@@ -1,12 +1,19 @@
 // src/data/quotes.js
-import env from '../config/env.js';
+import { config } from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Configure environment variables
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+config({ path: path.resolve(__dirname, '../../config/.env') });
 
 export async function fetchQuotes(ticker, start, end) {
   // Convert dates to nanoseconds
   const startNs = BigInt(start.getTime()) * 1_000_000n;
   const endNs = BigInt(end.getTime()) * 1_000_000n;
 
-  let url = `https://api.polygon.io/v3/quotes/${ticker}?timestamp.gte=${startNs}&timestamp.lte=${endNs}&apiKey=${env.POLYGON_API_KEY}`;
+  let url = `https://api.polygon.io/v3/quotes/${ticker}?timestamp.gte=${startNs}&timestamp.lte=${endNs}&apiKey=${process.env.POLYGON_API_KEY}`;
   
   try {
     let allQuotes = [];

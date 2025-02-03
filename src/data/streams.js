@@ -1,6 +1,13 @@
 // src/data/streams.js
 import WebSocket from 'ws';
-import env from '../config/env.js';
+import { config } from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Configure environment variables
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+config({ path: path.resolve(__dirname, '../../config/.env') });
 
 export class RealTimeStream {
   constructor(tickers) {
@@ -28,7 +35,7 @@ export class RealTimeStream {
   authenticate() {
     this.ws.send(JSON.stringify({
       action: "auth",
-      params: env.POLYGON_API_KEY
+      params: process.env.POLYGON_API_KEY
     }), err => {
       if (err) {
         console.error('Authentication failed:', err);
