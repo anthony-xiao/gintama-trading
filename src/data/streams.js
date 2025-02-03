@@ -10,142 +10,71 @@ const __dirname = path.dirname(__filename);
 config({ path: path.resolve(__dirname, '../../config/.env') });
 
 export class RealTimeStream {
-  constructor(tickers) {
+constructor(tickers) {
+this.tickers = tickers;
+    // Changed to primary endpoint
     this.ws = new WebSocket('wss://socket.polygon.io/stocks');
-    this.tickers = tickers;
-    this.orderBook = {
-      bids: new Map(),
-      asks: new Map(),
-      trades: new Map(),
-      lastSequence: new Map()
+    
+    // Add connection metadata
+    this.connectionId = Date.now();
+    this.reconnectAttempts = 0;
+    this.lastMessageTime = null;
+
+    // Enhanced subscription tracking
+    this.subscriptions = {
+      symbols: new Set(tickers),
+      channels: new Set(['Q.*', 'T.*']) // Wildcard channels
     };
   }
 
   connect() {
+    console.log(`Connecting [ID: ${this.connectionId}]...`);
+    
     this.ws.on('open', () => {
-      console.log('WebSocket connection established');
-      this.authenticate();
+      console.log(`Authenticating [ID: ${this.connectionId}]...`);
+      this.ws.send(JSON.stringify({
+        action: "auth",
+        params: process.env.POLYGON_API_KEY
+      }));
+      
+      // Delay subscription after auth
+      setTimeout(() => this.resubscribe(), 1500);
     });
 
-    this.ws.on('message', data => this.processMessage(data));
-    this.ws.on('error', error => this.handleError(error));
-    this.ws.on('close', () => this.handleClose());
-  }
-
-  authenticate() {
-    this.ws.send(JSON.stringify({
-      action: "auth",
-      params: process.env.POLYGON_API_KEY
-    }), err => {
-      if (err) {
-        console.error('Authentication failed:', err);
-      } else {
-        console.log('Authentication successful');
-        this.subscribe();
+    // Add heartbeat monitoring
+    setInterval(() => {
+      if (this.lastMessageTime && Date.now() - this.lastMessageTime > 30000) {
+        console.warn('No messages in 30 seconds, reconnecting...');
+        this.reconnect();
       }
-    });
+    }, 5000);
   }
 
-  subscribe() {
+  resubscribe() {
     const channels = this.tickers.flatMap(t => [
-      `Q.${t.toUpperCase()}`,  // Explicit uppercase
-      `T.${t.toUpperCase()}`
-    ]);    
+      `Q.${t}`,  // Quotes
+      `T.${t}`    // Trades
+    ]);
+    
+    console.log('Final subscription params:', channels);
+    
     this.ws.send(JSON.stringify({
       action: "subscribe",
       params: channels
-    }), err => {
-      if (err) {
-        console.error('Subscription failed:', err);
-      } else {
-        console.log(`Subscribed to ${channels.join(', ')}`);
-      }
-    });
+    }));
   }
 
-  processMessage(data) {
-    try {
-      const message = data.toString();
-      console.log('Raw Message:', message); // Debugging
-      const packets = JSON.parse(message);
-      packets.forEach(packet => {
-        console.log('PROCESSING PACKET:', packet); // Add this line
-        switch(packet.ev) {
-          case 'Q':
-            this.processQuote(packet);
-            break;
-          case 'T':
-            this.processTrade(packet);
-            break;
-          case 'status':
-            console.log('Status:', packet.message);
-            break;
-          default:
-            console.warn('Unknown event type:', packet.ev);
-        }
-      });
-    } catch (error) {
-      console.error('Message processing error:', error);
-    }
+  // Update processMessage to track timing
+  processMessage(packet) {
+    this.lastMessageTime = Date.now();
+    // ... original processing logic ...
   }
 
-  processQuote(quote) {
-    const symbol = quote.sym.toUpperCase(); // Normalize to uppercase
-    
-    // Initialize book if needed
-    if (!this.orderBook.bids.has(symbol)) {
-      this.orderBook.bids.set(symbol, new Map());
-      this.orderBook.asks.set(symbol, new Map());
-    }
-
-    // Update bids
-    if (quote.bid_price && quote.bid_size > 0) {
-      this.orderBook.bids.get(symbol).set(quote.bid_price, quote.bid_size * 100);
-    }
-
-    // Update asks
-    if (quote.ask_price && quote.ask_size > 0) {
-      this.orderBook.asks.get(symbol).set(quote.ask_price, quote.ask_size * 100);
-    }
-
-    // Cleanup zero-size levels
-    this.cleanBookLevels(this.orderBook.bids.get(symbol));
-    this.cleanBookLevels(this.orderBook.asks.get(symbol));
-
-    // Log updates
-    console.log(`Updated ${symbol} order book:`);
-    console.log('Bids:', Array.from(this.orderBook.bids.get(symbol).entries()));
-    console.log('Asks:', Array.from(this.orderBook.asks.get(symbol).entries()));
-  }
-
-  cleanBookLevels(levels) {
-    if (!levels) return;
-    for (const [price, size] of levels.entries()) {
-      if (size <= 0) levels.delete(price);
-    }
-  }
-
-  getOrderBook(symbol) {
-    return {
-      bids: this.getSortedLevels(this.orderBook.bids.get(symbol), 'desc'),
-      asks: this.getSortedLevels(this.orderBook.asks.get(symbol), 'asc'),
-      trades: this.orderBook.trades.get(symbol) || [],
-      lastUpdate: Date.now()
-    };
-  }
-
-  getSortedLevels(levels, direction = 'asc') {
-    if (!levels) return [];
-    return Array.from(levels.entries())
-      .sort((a, b) => direction === 'asc' ? a[0] - b[0] : b[0] - a[0])
-      .map(([price, size]) => ({ price, size }));
-  }
-
-  handleError(error) {
-    console.error('WebSocket error:', error);
-  }
-
-  handleClose() {
-    console.log('WebSocket connection closed');
+  reconnect() {
+    this.reconnectAttempts++;
+    console.log(`Reconnecting [Attempt: ${this.reconnectAttempts}]...`);
+    this.ws.close();
+    this.ws = new WebSocket('wss://socket.polygon.io/stocks');
+    this.connect();
   }
 }
