@@ -1,27 +1,25 @@
 // src/features/orderBook.js
 export function calculateOrderBookFeatures(quotes) {
-  // Aggregate quotes into price levels
-  const priceLevels = quotes.reduce((acc, q) => {
-    acc.bids[q.bidPrice] = (acc.bids[q.bidPrice] || 0) + q.bidSize;
-    acc.asks[q.askPrice] = (acc.asks[q.askPrice] || 0) + q.askSize;
-    return acc;
-  }, { bids: {}, asks: {} });
+  if (!quotes || quotes.length === 0) {
+    return {
+      spread: 0.01,
+      depthImbalance: 0,
+      pressure: 1,
+      midPrice: 1
+    };
+  }
 
-  // Sort and get best levels
-  const sortedBids = Object.entries(priceLevels.bids)
-    .sort((a, b) => b[0] - a[0]);
-  const sortedAsks = Object.entries(priceLevels.asks)
-    .sort((a, b) => a[0] - b[0]);
+  const bids = quotes.filter(q => q.bid_price);
+  const asks = quotes.filter(q => q.ask_price);
 
-  const bestBid = sortedBids[0] || [0, 0];
-  const bestAsk = sortedAsks[0] || [0, 0];
+  const bidSize = bids.reduce((sum, q) => sum + (q.bid_size || 0), 0);
+  const askSize = asks.reduce((sum, q) => sum + (q.ask_size || 0), 0);
 
   return {
-    spread: bestAsk[0] - bestBid[0],
-    midPrice: (bestBid[0] + bestAsk[0]) / 2,
-    depthImbalance: (sumSizes(sortedBids) - sumSizes(sortedAsks)) / 
-                   (sumSizes(sortedBids) + sumSizes(sortedAsks)),
-    pressure: bestBid[1] / (bestAsk[1] || 1)
+    spread: (asks[0]?.ask_price || 1) - (bids[0]?.bid_price || 1),
+    depthImbalance: (bidSize - askSize) / (bidSize + askSize || 1),
+    pressure: (bids[0]?.bid_size || 1) / (asks[0]?.ask_size || 1),
+    midPrice: ((bids[0]?.bid_price || 1) + (asks[0]?.ask_price || 1)) / 2
   };
 }
 

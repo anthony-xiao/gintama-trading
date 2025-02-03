@@ -1,6 +1,13 @@
 // src/data/historical.js
 import fetch from 'node-fetch';
-import env from '../config/env.js';
+import { config } from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Configure environment variables
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+config({ path: path.resolve(__dirname, '../../config/.env') });
 
 export async function fetchBars(ticker, start, end) {
   let url; // Declare outside try block
@@ -18,7 +25,7 @@ export async function fetchBars(ticker, start, end) {
     const from = formatDate(start);
     const to = formatDate(end);
     
-    url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/1/minute/${from}/${to}?adjusted=true&apiKey=${env.POLYGON_API_KEY}`;
+    url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/1/minute/${from}/${to}?adjusted=true&apiKey=${process.env.POLYGON_API_KEY}`;
     
     const response = await fetch(url);
     
