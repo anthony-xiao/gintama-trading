@@ -1,0 +1,9 @@
+# .gitignore
+node_modules/
+.env
+models/
+logs/
+services/shap/data/
+*.pyc
+__pycache__/
+.DS_Store
