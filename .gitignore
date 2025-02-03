@@ -8,3 +8,10 @@ services/shap/data/
 __pycache__/
 .DS_Store
 .venv/
+# Python virtual environment
+.venv/
+
+# Large files
+*.dylib
+*.so
+*.bin
